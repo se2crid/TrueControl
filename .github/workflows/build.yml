@@ -6,8 +6,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -20,21 +22,23 @@ jobs:
       - name: Install Expo CLI
         run: npm install -g expo-cli
 
-      - name: Login to Expo (Optional: if you want to use your Expo account)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: expo login --token $EXPO_TOKEN
+      # If you have an EXPO_TOKEN secret and want to login, uncomment below:
+      # - name: Login to Expo
+      #   env:
+      #     EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      #   run: expo login --token $EXPO_TOKEN
 
-      - name: Build unsigned IPA
+      - name: Build project for iOS (development build, unsigned)
         run: npx expo run:ios --no-install --device
 
-      # If you want to use EAS Build:
+      # If you use EAS Build (recommended for unsigned IPA), uncomment below and configure eas.json:
       # - name: Install EAS CLI
       #   run: npm install -g eas-cli
       # - name: Build with EAS
-      #   run: eas build -p ios --profile preview --non-interactive
+      #   run: eas build -p ios --profile development --non-interactive
 
-      # - name: Upload artifact
+      # To upload your artifact, edit the path to match where the IPA is output:
+      # - name: Upload unsigned IPA artifact
       #   uses: actions/upload-artifact@v4
       #   with:
       #     name: unsigned-ipa
