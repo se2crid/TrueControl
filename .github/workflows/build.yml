@@ -1,14 +1,42 @@
-name: Build Unsigned IPA for iOS
+# GitHub Actions Workflow for building an unsigned React Native iOS App
+#
+# File: .github/workflows/build-ios.yml
+#
+# This workflow is designed to build a React Native iOS application for the
+# simulator. This process does not require code signing certificates or
+# provisioning profiles from the Apple Developer Program.
+#
+# How it works:
+# 1. Trigger: The workflow runs automatically on every push to the 'main' branch
+#    and can also be triggered manually from the GitHub Actions tab.
+# 2. Environment: It uses the latest available macOS runner, which is required
+#    for all iOS builds.
+# 3. Setup: It checks out your code, sets up a Node.js environment for React Native,
+#    and sets up Ruby/Bundler for managing CocoaPods.
+# 4. Dependencies: It installs both the JavaScript dependencies (using Yarn) and
+#    the iOS-specific dependencies (CocoaPods).
+# 5. Build: It uses the 'xcodebuild' command-line tool to build the .app file.
+#    - The key is the `-sdk iphonesimulator` flag, which targets the build for
+#      a simulator and bypasses the need for code signing.
+#    - We explicitly disable code signing with `CODE_SIGNING_ALLOWED=NO`.
+# 6. Artifacts: After a successful build, it packages the resulting '.app' file
+#    into a compressed '.zip' archive and uploads it as a build artifact. You
+#    can then download this artifact from the workflow summary page.
+
+name: Build Unsigned iOS App
 
 on:
-  workflow_dispatch:
+  # Triggers the workflow on push events but only for the main branch
   push:
-    branches:
-      - main
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   build-ios:
-    runs-on: macos-latest
+    name: Build iOS Simulator App
+    runs-on: macos-latest # iOS builds require a macOS runner
 
     steps:
       - name: Checkout repository
@@ -17,62 +45,40 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20' # Specify a recent LTS version of Node.js
+          cache: 'yarn'
 
-      - name: Install dependencies
-        run: |
-          npm ci
+      - name: Set up Ruby and Bundler
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '2.7' # Version of Ruby to use
+          bundler-cache: true # Caches gems installed by Bundler
 
-      - name: Install CocoaPods dependencies
+      - name: Install JavaScript Dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install CocoaPods
+        # Installs pods from the Gemfile.lock in the ios directory
         run: |
           cd ios
-          pod install
-        shell: bash
+          bundle install
+          bundle exec pod install
 
-      - name: Build iOS unsigned IPA
+      - name: Build iOS Application
+        # This step builds the app for the simulator, which doesn't require signing.
+        # The workspace and scheme name should match your project's configuration.
         run: |
-          cd ios
-          xcodebuild \
-            -workspace TrueControl.xcworkspace \
+          xcodebuild build \
+            -workspace ios/TrueControl.xcworkspace \
             -scheme TrueControl \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath $PWD/build/TrueControl.xcarchive \
-            archive
+            -sdk iphonesimulator \
+            -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO
 
-          xcodebuild \
-            -exportArchive \
-            -archivePath $PWD/build/TrueControl.xcarchive \
-            -exportOptionsPlist ExportOptions-unsigned.plist \
-            -exportPath $PWD/build/unsigned
-        shell: bash
-
-      - name: Create ExportOptions-unsigned.plist
-        run: |
-          cat <<EOF > ios/ExportOptions-unsigned.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>ad-hoc</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>compileBitcode</key>
-            <false/>
-            <key>signingCertificate</key>
-            <string></string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.your.bundle.id</key>
-              <string></string>
-            </dict>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Upload unsigned IPA artifact
+      - name: Upload Build Artifact
+        # This will take the .app file from the build output and upload it
+        # so you can download it from the GitHub Actions summary page.
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-ipa
-          path: ios/build/unsigned/*.ipa
+          name: TrueControl-iOS-Simulator-Build
+          path: ios/build/Build/Products/Debug-iphonesimulator/TrueControl.app
